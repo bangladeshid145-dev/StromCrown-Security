@@ -355,13 +355,9 @@ async def main():
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            async with client:
-                await client.start(TOKEN)
-                break
+            await client.start(TOKEN)
+            break
         except discord.HTTPException as e:
-            if not client.is_closed():
-                await client.close()
-
             if e.status == 429: # Rate limited by Discord API
                 retry_after = getattr(e, 'retry_after', None)
                 if retry_after is not None:
@@ -373,14 +369,18 @@ async def main():
                 await asyncio.sleep(wait_time)
             else:
                 print(f"\033[31m[HTTP Error] Failed to start bot: {e}\033[0m")
+                if not client.is_closed():
+                    await client.close()
                 raise
         except Exception as e:
+            print(f"\033[31m[Error] Unexpected error during bot startup: {e}\033[0m")
             if not client.is_closed():
                 await client.close()
-            print(f"\033[31m[Error] Unexpected error during bot startup: {e}\033[0m")
             raise
     else:
         print("\033[31m[Error] Bot failed to start after multiple retries due to rate limiting.\033[0m")
+        if not client.is_closed():
+            await client.close()
         await asyncio.sleep(60)
         raise Exception("Bot failed to start after multiple retries due to rate limiting.")
 
