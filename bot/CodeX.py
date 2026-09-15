@@ -13,6 +13,8 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 import os
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 import subprocess
 # os.system("")
 import asyncio
@@ -340,24 +342,47 @@ start_tunnel()
 
 # --- Main Bot Execution ---
 async def main():
-    async with client:
-        os.system("clear")
-        await client.load_extension("jishaku")
-        
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
+    if not TOKEN:
+        print("\033[31m[Error] TOKEN environment variable is not set or empty!\033[0m")
+        return
+
+    try:
+        if "jishaku" not in client.extensions:
+            await client.load_extension("jishaku")
+    except Exception as e:
+        print(f"Notice: jishaku extension load info: {e}")
+
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            async with client:
                 await client.start(TOKEN)
                 break
-            except discord.HTTPException as e:
-                if e.status == 429: # Rate limited
-                    wait_time = min((2 ** attempt) + random.random(), 60)
-                    print(f"Rate limited. Retrying in {wait_time:.2f} seconds...")
-                    await asyncio.sleep(wait_time)
+        except discord.HTTPException as e:
+            if not client.is_closed():
+                await client.close()
+
+            if e.status == 429: # Rate limited by Discord API
+                retry_after = getattr(e, 'retry_after', None)
+                if retry_after is not None:
+                    wait_time = float(retry_after) + random.uniform(1.0, 3.0)
                 else:
-                    raise
-        else:
-            raise Exception("Bot failed to start after multiple retries due to rate limiting.")
+                    wait_time = float((2 ** (attempt + 4)) + random.uniform(1.0, 5.0))
+                
+                print(f"\033[33m[Rate Limited] Discord API 429 encountered. Retrying in {wait_time:.2f}s (Attempt {attempt + 1}/{max_retries})...\033[0m")
+                await asyncio.sleep(wait_time)
+            else:
+                print(f"\033[31m[HTTP Error] Failed to start bot: {e}\033[0m")
+                raise
+        except Exception as e:
+            if not client.is_closed():
+                await client.close()
+            print(f"\033[31m[Error] Unexpected error during bot startup: {e}\033[0m")
+            raise
+    else:
+        print("\033[31m[Error] Bot failed to start after multiple retries due to rate limiting.\033[0m")
+        await asyncio.sleep(60)
+        raise Exception("Bot failed to start after multiple retries due to rate limiting.")
 
 if __name__ == "__main__":
     asyncio.run(main())

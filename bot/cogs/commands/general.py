@@ -98,9 +98,19 @@ class General(commands.Cog):
 
   def __init__(self, bot, *args, **kwargs):
     self.bot = bot
-    self.aiohttp = aiohttp.ClientSession()
+    self._aiohttp = None
     self._URL_REGEX = r'(?P<url><[^: >]+:\/[^ >]+>|(?:https?|steam):\/\/[^\s<]+[^<.,:;"\'\\]\s])'
     self.color = 0xFF0000
+
+  @property
+  def session(self):
+    if self._aiohttp is None or self._aiohttp.closed:
+      self._aiohttp = aiohttp.ClientSession()
+    return self._aiohttp
+
+  async def cog_unload(self):
+    if self._aiohttp and not self._aiohttp.closed:
+      await self._aiohttp.close()
 
 
   @commands.hybrid_command(
@@ -311,7 +321,7 @@ class General(commands.Cog):
   @ignore_check()
   @commands.cooldown(1, 3, commands.BucketType.user)
   async def urban(self, ctx: commands.Context, *, phrase):
-    async with self.aiohttp.get(
+    async with self.session.get(
         "http://api.urbandictionary.com/v0/define?term={}".format(
           phrase)) as urb:
       urban = await urb.json()
@@ -347,7 +357,7 @@ class General(commands.Cog):
     phrases = [
       "rickroll", "rick roll", "rick astley", "never gonna give you up"
     ]
-    source = str(await (await self.aiohttp.get(
+    source = str(await (await self.session.get(
       url, allow_redirects=True)).content.read()).lower()
     rickRoll = bool((re.findall('|'.join(phrases), source,
                                 re.MULTILINE | re.IGNORECASE)))

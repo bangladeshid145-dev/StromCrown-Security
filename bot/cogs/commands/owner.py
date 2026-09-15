@@ -828,7 +828,7 @@ class Badges(commands.Cog):
         await ctx.send(embed=embed, file=file)
 
 async def setup(client):
-    if not hasattr(client, 'session'):
+    if not hasattr(client, 'session') or client.session.closed:
         client.session = aiohttp.ClientSession()
     await client.add_cog(Badges(client))
     
